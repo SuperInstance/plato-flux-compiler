@@ -17,7 +17,7 @@ use crate::ast::{CmpOp, Condition};
 
 /// Bytecode label for jump resolution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Label(usize);
+struct Label(#[allow(dead_code)] usize);
 
 /// A compiled function with its bytecode and metadata.
 #[derive(Debug, Clone)]
@@ -58,6 +58,7 @@ impl Codegen {
     }
 
     /// Allocate a temporary register.
+    #[allow(dead_code)]
     fn alloc_reg(&mut self) -> u8 {
         let r = self.next_reg;
         self.next_reg += 1;
@@ -264,74 +265,72 @@ pub fn disassemble(bytecode: &[u8]) -> String {
             },
         };
 
-        match Op::from_byte(op_byte) {
-            Some(Op::LOAD) if i + 3 < bytecode.len() => {
+        match op_byte {
+            // LOAD = 0x02 (not in flux-core from_byte)
+            0x02 if i + 3 < bytecode.len() => {
                 let slot = u16::from_le_bytes([bytecode[i + 2], bytecode[i + 3]]);
                 lines.push(format!("{:04x}: LOAD R{}, [{}]", offset, bytecode[i + 1], slot));
                 i += 4;
             }
-            Some(Op::STORE) if i + 1 < bytecode.len() => {
+            // STORE = 0x03
+            0x03 if i + 1 < bytecode.len() => {
                 lines.push(format!("{:04x}: STORE R{}, [{}]", offset, bytecode[i + 1], bytecode.get(i + 2).copied().unwrap_or(0)));
                 i += 3;
             }
-            Some(Op::MOV) if i + 2 < bytecode.len() => {
-                lines.push(format!("{:04x}: MOV R{}, R{}", offset, bytecode[i + 1], bytecode[i + 2]));
-                i += 3;
-            }
-            Some(Op::MOVI) if i + 1 < bytecode.len() => {
-                lines.push(format!("{:04x}: MOVI R{}, R{}", offset, bytecode[i + 1], bytecode.get(i + 2).copied().unwrap_or(0)));
-                i += 3;
-            }
-            Some(Op::PUSH) => {
-                if i + 4 < bytecode.len() {
-                    let val = i32::from_le_bytes([
-                        bytecode[i + 1],
-                        bytecode[i + 2],
-                        bytecode[i + 3],
-                        bytecode[i + 4],
-                    ]);
-                    lines.push(format!("{:04x}: PUSH {}", offset, val));
-                    i += 5;
-                } else {
-                    lines.push(format!("{:04x}: PUSH (truncated)", offset));
+            _ => match Op::from_byte(op_byte) {
+                Some(Op::MOV) if i + 2 < bytecode.len() => {
+                    lines.push(format!("{:04x}: MOV R{}, R{}", offset, bytecode[i + 1], bytecode[i + 2]));
+                    i += 3;
+                }
+                Some(Op::MOVI) if i + 1 < bytecode.len() => {
+                    lines.push(format!("{:04x}: MOVI R{}, R{}", offset, bytecode[i + 1], bytecode.get(i + 2).copied().unwrap_or(0)));
+                    i += 3;
+                }
+                Some(Op::PUSH) => {
+                    if i + 4 < bytecode.len() {
+                        let val = i32::from_le_bytes([
+                            bytecode[i + 1],
+                            bytecode[i + 2],
+                            bytecode[i + 3],
+                            bytecode[i + 4],
+                        ]);
+                        lines.push(format!("{:04x}: PUSH {}", offset, val));
+                        i += 5;
+                    } else {
+                        lines.push(format!("{:04x}: PUSH (truncated)", offset));
+                        i += 1;
+                    }
+                }
+                Some(Op::CMP) if i + 1 < bytecode.len() => {
+                    let cmp_type = bytecode.get(i + 2).copied().unwrap_or(0);
+                    let cmp_name = match cmp_type {
+                        0 => "EQ", 1 => "NE", 2 => "LT", 3 => "LE", 4 => "GT", 5 => "GE", _ => "??",
+                    };
+                    lines.push(format!("{:04x}: CMP R{}, {}", offset, bytecode[i + 1], cmp_name));
+                    i += 3;
+                }
+                Some(Op::JZ) if i + 2 < bytecode.len() => {
+                    let target = u16::from_le_bytes([bytecode[i + 2], bytecode[i + 3]]);
+                    lines.push(format!("{:04x}: JZ R{}, 0x{:04x}", offset, bytecode[i + 1], target));
+                    i += 4;
+                }
+                Some(Op::JNZ) if i + 2 < bytecode.len() => {
+                    let target = u16::from_le_bytes([bytecode[i + 2], bytecode[i + 3]]);
+                    lines.push(format!("{:04x}: JNZ R{}, 0x{:04x}", offset, bytecode[i + 1], target));
+                    i += 4;
+                }
+                Some(Op::INEG) if i + 1 <= bytecode.len() => {
+                    lines.push(format!("{:04x}: INEG R{}", offset, bytecode.get(i + 1).copied().unwrap_or(0)));
+                    i += 2;
+                }
+                Some(Op::HALT) => {
+                    lines.push(format!("{:04x}: HALT", offset));
                     i += 1;
                 }
-            }
-            Some(Op::CMP) if i + 1 < bytecode.len() => {
-                let cmp_type = bytecode.get(i + 2).copied().unwrap_or(0);
-                let cmp_name = match cmp_type {
-                    0 => "EQ",
-                    1 => "NE",
-                    2 => "LT",
-                    3 => "LE",
-                    4 => "GT",
-                    5 => "GE",
-                    _ => "??",
-                };
-                lines.push(format!("{:04x}: CMP R{}, {}", offset, bytecode[i + 1], cmp_name));
-                i += 3;
-            }
-            Some(Op::JZ) if i + 2 < bytecode.len() => {
-                let target = u16::from_le_bytes([bytecode[i + 2], bytecode[i + 3]]);
-                lines.push(format!("{:04x}: JZ R{}, 0x{:04x}", offset, bytecode[i + 1], target));
-                i += 4;
-            }
-            Some(Op::JNZ) if i + 2 < bytecode.len() => {
-                let target = u16::from_le_bytes([bytecode[i + 2], bytecode[i + 3]]);
-                lines.push(format!("{:04x}: JNZ R{}, 0x{:04x}", offset, bytecode[i + 1], target));
-                i += 4;
-            }
-            Some(Op::INEG) if i + 1 <= bytecode.len() => {
-                lines.push(format!("{:04x}: INEG R{}", offset, bytecode.get(i + 1).copied().unwrap_or(0)));
-                i += 2;
-            }
-            Some(Op::HALT) => {
-                lines.push(format!("{:04x}: HALT", offset));
-                i += 1;
-            }
-            _ => {
-                lines.push(format!("{:04x}: {} (raw)", offset, op_name));
-                i += 1;
+                _ => {
+                    lines.push(format!("{:04x}: {} (raw)", offset, op_name));
+                    i += 1;
+                }
             }
         }
     }

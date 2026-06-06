@@ -7,7 +7,7 @@
 //! - Threshold: `sensor rising_by delta in N_ticks`
 //! - Parenthesized grouping
 
-use crate::ast::{CmpOp, Comparison, Condition, LogicalOp, RangeCheck, ThresholdCheck};
+use crate::ast::{CmpOp, Comparison, Condition, RangeCheck, ThresholdCheck};
 
 /// Parse error with a description of what went wrong.
 #[derive(Debug, Clone, PartialEq)]
@@ -170,7 +170,8 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(lexer: &'a mut Lexer) -> Self {
+    #[allow(dead_code)]
+    pub(crate) fn new(lexer: &'a mut Lexer) -> Self {
         Parser { lexer }
     }
 
