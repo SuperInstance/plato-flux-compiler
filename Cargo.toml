@@ -1,0 +1,15 @@
+[package]
+name = "plato-flux-compiler"
+version = "0.1.0"
+edition = "2021"
+description = "Compiles Plato room alarm configurations into FLUX bytecode for deterministic execution"
+license = "MIT"
+authors = ["SuperInstance (DiGennaro et al.)"]
+repository = "https://github.com/SuperInstance/plato-flux-compiler"
+keywords = ["plato", "flux", "bytecode", "compiler", "alarm"]
+categories = ["compilers", "embedded", "parser-implementations"]
+
+[dependencies]
+flux-core = { path = "../flux-core" }
+
+[dev-dependencies]
